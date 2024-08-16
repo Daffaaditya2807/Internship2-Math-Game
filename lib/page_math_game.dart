@@ -1,26 +1,57 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:math_game/arrow_painter.dart';
 
 import 'math_game_controller.dart';
 
 class PageMathGame extends StatelessWidget {
   final controller = Get.put(MathGameController());
+  final GlobalKey tagrgetKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 25, 25, 25),
       body: SafeArea(
-          child: Column(
-        children: [
-          barGame(controller),
-          Expanded(child: Container()),
-          quizBox(controller),
-          Expanded(child: Container()),
-          numberPad(controller),
-        ],
-      )),
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                barGame(controller),
+                Expanded(child: Container()),
+                quizBox(controller),
+                Expanded(child: Container()),
+                numberPad(controller, context, tagrgetKey),
+              ],
+            ),
+            Obx(() {
+              if (controller.showArrow.value) {
+                return Stack(
+                  children: [
+                    CustomPaint(
+                      size: Size(MediaQuery.of(context).size.width,
+                          MediaQuery.of(context).size.height),
+                      painter: ArrowPainter(
+                        start: controller.dragStartOffset.value,
+                        end: controller.dragEndOffset.value,
+                      ),
+                    ),
+                    Positioned(
+                      left: controller.dragEndOffset.value.dx -
+                          15, // Adjust as necessary
+                      top: controller.dragEndOffset.value.dy -
+                          15, // Adjust as necessary
+                      child: Container(),
+                    ),
+                  ],
+                );
+              }
+              return Container();
+            })
+          ],
+        ),
+      ),
     );
   }
 
@@ -32,8 +63,8 @@ class PageMathGame extends StatelessWidget {
         children: [
           Row(
             children: [
-                 IconButton(
-                  onPressed: (){},
+              IconButton(
+                  onPressed: () {},
                   icon: const Icon(
                     Icons.keyboard_arrow_up_sharp,
                     size: 30,
@@ -94,10 +125,12 @@ class PageMathGame extends StatelessWidget {
                 const Divider(),
                 const SizedBox(height: 5),
                 DragTarget<String>(
-                  onAccept: (value) {
-                    controller.droppedValue.value = value;
-                    controller.showIcon.value = true;
-                  },
+                  key: tagrgetKey,
+                  // onAccept: (value) {
+                  //   // controller.droppedValue.value = value;
+                  //   // controller.showIcon.value = true;
+                  //   // controller.update();
+                  // },
                   builder: (_, candidateData, rejectedData) {
                     return Obx(() => Container(
                           decoration: BoxDecoration(
@@ -125,20 +158,25 @@ class PageMathGame extends StatelessWidget {
         ));
   }
 
-  Widget numberPad(MathGameController controller) {
+  Widget numberPad(MathGameController controller, BuildContext context,
+      GlobalKey targetKey) {
     return Padding(
       padding: const EdgeInsets.all(15.0),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children:
-                List.generate(5, (index) => numberInput(controller, "$index")),
+            children: List.generate(
+                5,
+                (index) =>
+                    numberInput(controller, "$index", context, tagrgetKey)),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(
-                5, (index) => numberInput(controller, "${index + 5}")),
+                5,
+                (index) => numberInput(
+                    controller, "${index + 5}", context, targetKey)),
           ),
           const SizedBox(height: 10),
           Obx(() => Row(
@@ -186,21 +224,50 @@ class PageMathGame extends StatelessWidget {
     );
   }
 
-  Widget numberInput(MathGameController controller, String input) {
+  Widget numberInput(MathGameController controller, String input,
+      BuildContext context, GlobalKey targetKey) {
     return Draggable<String>(
       data: input,
+      onDragStarted: () {
+        RenderBox box = context.findRenderObject() as RenderBox;
+        Offset startPosition = box.localToGlobal(Offset.zero) +
+            Offset(box.size.width / 2,
+                box.size.height / 2); // Center of the widget
+        controller.dragStartOffset.value = startPosition;
+        controller.showArrow.value = true;
+      },
+      onDragUpdate: (details) {
+        controller.dragEndOffset.value = details.globalPosition;
+      },
+      onDragEnd: (details) {
+        controller.showArrow.value = false;
+
+        // Implementasi kondisi jika `details.offset` berada di dalam `DragTarget`
+        final RenderBox targetBox =
+            targetKey.currentContext?.findRenderObject() as RenderBox;
+        final Offset targetPosition = targetBox.localToGlobal(Offset.zero);
+        final Size targetSize = targetBox.size;
+
+        if (details.offset.dx >= targetPosition.dx &&
+            details.offset.dx <= targetPosition.dx + targetSize.width &&
+            details.offset.dy >= targetPosition.dy &&
+            details.offset.dy <= targetPosition.dy + targetSize.height) {
+          // `details.offset` berada di dalam area `DragTarget`
+          print("Dropped inside DragTarget!");
+          controller.droppedValue.value = input;
+          controller.showIcon.value = true;
+        } else {
+          // `details.offset` berada di luar area `DragTarget`
+          print("Dropped outside DragTarget!");
+        }
+      },
       feedback: Material(
         color: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-              color: Colors.grey.shade700.withOpacity(0.5),
-              shape: BoxShape.circle),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(15.0),
-              child: Text(input,
-                  style: const TextStyle(fontSize: 30, color: Colors.white)),
-            ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(15.0),
+            child: Text(input,
+                style: const TextStyle(fontSize: 30, color: Colors.white)),
           ),
         ),
       ),
@@ -217,15 +284,30 @@ class PageMathGame extends StatelessWidget {
           ),
         ),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-            color: Colors.grey.shade700.withOpacity(0.5),
-            shape: BoxShape.circle),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(15.0),
-            child: Text(input,
-                style: const TextStyle(fontSize: 30, color: Colors.white)),
+      child: GestureDetector(
+        onPanStart: (details) {
+          RenderBox box = context.findRenderObject() as RenderBox;
+          Offset startPosition = box.localToGlobal(details.localPosition);
+          controller.dragStartOffset.value = startPosition;
+          controller.showArrow.value = true;
+        },
+        onPanUpdate: (details) {
+          controller.dragEndOffset.value = details.globalPosition;
+        },
+        onPanEnd: (details) {
+          controller.showArrow.value = false;
+          print("object");
+        },
+        child: Container(
+          decoration: BoxDecoration(
+              color: Colors.grey.shade700.withOpacity(0.5),
+              shape: BoxShape.circle),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(15.0),
+              child: Text(input,
+                  style: const TextStyle(fontSize: 30, color: Colors.white)),
+            ),
           ),
         ),
       ),

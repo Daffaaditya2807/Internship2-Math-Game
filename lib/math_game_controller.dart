@@ -11,10 +11,17 @@ class MathGameController extends GetxController {
   var starCount = 2.obs;
   var isTrue = false.obs;
 
+  var dragStartOffset = Offset.zero.obs;
+  var dragEndOffset = Offset.zero.obs;
+  var showArrow = false.obs;
+
   @override
   void onInit() {
     // TODO: implement onInit
     super.onInit();
+    droppedValue.listen((val) {
+      print("droppedValue changed to: $val");
+    });
     generateRandomNumbers();
   }
 
@@ -30,17 +37,20 @@ class MathGameController extends GetxController {
   }
 
   void validateAnswer() {
+    print("Current droppedValue: ${droppedValue.value}"); // Before validation
     int answer = int.parse(droppedValue.value);
     if (answer == firstNumber.value + secondNumber.value) {
       colorAnswer.value = Colors.green;
       showIcon.value = false;
       isTrue.value = true;
+      print("Answer is correct, updating color and isTrue flag.");
       Get.snackbar("Correct!", "Next Your Question",
           colorText: Colors.white, backgroundColor: Colors.green);
     } else {
       colorAnswer.value = Colors.red;
       showIcon.value = false;
       starCount.value--;
+      print("Answer is incorrect, updating color and decreasing stars.");
       if (starCount.value == 0) {
         showGameOverDialog();
       }
